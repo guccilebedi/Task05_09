@@ -1,68 +1,161 @@
 package com.company;
 
-public class BinaryTree {
-    private BinaryTreeNode root = null;
+import java.util.function.Function;
 
-    public BinaryTree() { }
+public class BinaryTree<T> implements DefaultBinaryTree<T> {
 
-    private void putNode(int value, BinaryTreeNode node) {
-        if (root == null) {
-            root = new BinaryTreeNode(value);
-        } else {
-            if (value > node.getValue()) {
-                if (node.getRight() != null) {
-                    putNode(value, node.getRight());
-                } else {
-                    node.setRight(new BinaryTreeNode(value));
-                }
-            } else {
-                if (value < node.getValue()) {
-                    if (node.getLeft() != null) {
-                        putNode(value, node.getLeft());
-                    } else {
-                        node.setLeft(new BinaryTreeNode(value));
-                    }
-                }
-            }
+    protected class SimpleTreeNode implements DefaultBinaryTree.TreeNode<T> {
+        public T value;
+        public SimpleTreeNode left;
+        public SimpleTreeNode right;
+
+        public SimpleTreeNode(T value, SimpleTreeNode left, SimpleTreeNode right) {
+            this.value = value;
+            this.left = left;
+            this.right = right;
+        }
+
+        public SimpleTreeNode(T value) {
+            this(value, null, null);
+        }
+
+        @Override
+        public T getValue() {
+            return value;
+        }
+
+        @Override
+        public TreeNode<T> getLeft() {
+            return left;
+        }
+
+        @Override
+        public TreeNode<T> getRight() {
+            return right;
         }
     }
 
-    public void put(int value) {
-        putNode(value, root);
+    protected SimpleTreeNode root = null;
+
+    protected Function<String, T> fromStrFunc;
+    protected Function<T, String> toStrFunc;
+
+    public BinaryTree(Function<String, T> fromStrFunc, Function<T, String> toStrFunc) {
+        this.fromStrFunc = fromStrFunc;
+        this.toStrFunc = toStrFunc;
     }
 
-    public int min() {
-        int min = root.getValue();
-        BinaryTreeNode node = root;
-        while (node.getLeft() != null) {
-            min = node.getLeft().getValue();
-            node = node.getLeft();
-        }
-        return min;
+    public BinaryTree(Function<String, T> fromStrFunc) {
+        this(fromStrFunc, x -> x.toString());
     }
 
-    private void printNode(BinaryTreeNode node) {
-        if (node == null) {
-            return;
-        }
-        System.out.print(node.getValue());
-        if (node.getRight() != null || node.getLeft() != null) {
-            System.out.print(" " + "(" + " ");
-            printNode(node.getLeft());
-            printNode(node.getRight());
-            System.out.print(")" + " ");
-        } else {
-            if (node.getLeft() == null)
-            System.out.print(" ");
-        }
+    public BinaryTree() {
+        this(null);
     }
 
-    public void print() {
-        printNode(root);
-        System.out.println("\n");
+    @Override
+    public TreeNode<T> getRoot() {
+        return root;
     }
 
     public void clear() {
         root = null;
+    }
+
+    private T fromStr(String s) throws Exception {
+        s = s.trim();
+        if (s.length() > 0 && s.charAt(0) == '"') {
+            s = s.substring(1);
+        }
+        if (s.length() > 0 && s.charAt(s.length() - 1) == '"') {
+            s = s.substring(0, s.length() - 1);
+        }
+        if (fromStrFunc == null) {
+            throw new Exception("Не определена функция конвертации строки в T");
+        }
+        return fromStrFunc.apply(s);
+    }
+
+    private class IndexWrapper {
+        public int index = 0;
+    }
+
+    private void skipSpaces(String bracketStr, IndexWrapper iw) {
+        while (iw.index < bracketStr.length() && Character.isWhitespace(bracketStr.charAt(iw.index))) {
+            iw.index++;
+        }
+    }
+
+    private T readValue(String bracketStr, IndexWrapper iw) throws Exception {
+        skipSpaces(bracketStr, iw);
+        if (iw.index >= bracketStr.length()) {
+            return null;
+        }
+        int from = iw.index;
+        boolean quote = bracketStr.charAt(iw.index) == '"';
+        if (quote) {
+            iw.index++;
+        }
+        while (iw.index < bracketStr.length() && (
+                quote && bracketStr.charAt(iw.index) != '"' ||
+                        !quote && !Character.isWhitespace(bracketStr.charAt(iw.index)) && "(),".indexOf(bracketStr.charAt(iw.index)) < 0
+        )) {
+            iw.index++;
+        }
+        if (quote && bracketStr.charAt(iw.index) == '"') {
+            iw.index++;
+        }
+        String valueStr = bracketStr.substring(from, iw.index);
+        T value = fromStr(valueStr);
+        skipSpaces(bracketStr, iw);
+        return value;
+    }
+
+    private SimpleTreeNode fromBracketStr(String bracketStr, IndexWrapper iw) throws Exception {
+        T parentValue = readValue(bracketStr, iw);
+        SimpleTreeNode parentNode = new SimpleTreeNode(parentValue);
+        if (bracketStr.charAt(iw.index) == '(') {
+            iw.index++;
+            skipSpaces(bracketStr, iw);
+            if (bracketStr.charAt(iw.index) != ',') {
+                SimpleTreeNode leftNode = fromBracketStr(bracketStr, iw);
+                parentNode.left = leftNode;
+                skipSpaces(bracketStr, iw);
+            }
+            if (bracketStr.charAt(iw.index) == ',') {
+                iw.index++;
+                skipSpaces(bracketStr, iw);
+            }
+            if (bracketStr.charAt(iw.index) != ')') {
+                SimpleTreeNode rightNode = fromBracketStr(bracketStr, iw);
+                parentNode.right = rightNode;
+                skipSpaces(bracketStr, iw);
+            }
+            if (bracketStr.charAt(iw.index) != ')') {
+                throw new Exception(String.format("Ожидалось ')' [%d]", iw.index));
+            }
+            iw.index++;
+        }
+
+        return parentNode;
+    }
+
+    public void fromBracketNotation(String bracketStr) throws Exception {
+        IndexWrapper iw = new IndexWrapper();
+        SimpleTreeNode root = fromBracketStr(bracketStr, iw);
+        if (iw.index < bracketStr.length()) {
+            throw new Exception(String.format("Ожидался конец строки [%d]", iw.index));
+        }
+        this.root = root;
+    }
+
+    public T min() {
+        T min = root.getValue();
+        TreeNode<T> node = root;
+        while (node.getLeft() != null) {
+            node = node.getLeft();
+            min = node.getValue();
+        }
+        return min;
     }
 }
