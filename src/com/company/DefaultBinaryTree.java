@@ -1,5 +1,6 @@
 package com.company;
 
+import java.awt.*;
 import java.util.Iterator;
 import java.util.Stack;
 
@@ -12,6 +13,9 @@ public interface DefaultBinaryTree<T> extends Iterable<T> {
         }
         default TreeNode<T> getRight() {
             return null;
+        }
+        default Color getColor() {
+            return Color.BLACK;
         }
     }
 

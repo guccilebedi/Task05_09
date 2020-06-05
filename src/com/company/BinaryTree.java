@@ -1,5 +1,8 @@
 package com.company;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Stack;
 import java.util.function.Function;
 
 public class BinaryTree<T> implements DefaultBinaryTree<T> {
@@ -149,12 +152,25 @@ public class BinaryTree<T> implements DefaultBinaryTree<T> {
         this.root = root;
     }
 
-    public T min() {
-        T min = root.getValue();
-        TreeNode<T> node = root;
-        while (node.getLeft() != null) {
-            node = node.getLeft();
-            min = node.getValue();
+    public int minLeft() {
+        List lst = new ArrayList();
+        Stack<TreeNode> stack = new Stack<>();
+        stack.push(root);
+        while (!stack.isEmpty()) {
+            TreeNode temp = stack.pop();
+            if (temp.getRight() != null) {
+                stack.push(temp.getRight());
+            }
+            if (temp.getLeft() != null) {
+                stack.push(temp.getLeft());
+                lst.add(temp.getLeft().getValue());
+            }
+        }
+        int min = (int) lst.get(0);
+        for (int i = 0; i < lst.size(); i++) {
+            if ((int) lst.get(i) < min) {
+                min = (int) lst.get(i);
+            }
         }
         return min;
     }
